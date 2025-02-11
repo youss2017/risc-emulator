@@ -1,5 +1,8 @@
 #include <iostream>
 #include <vector>
+#include <string>
+#include <fstream>
+#include <format>
 
 class cpu_risc32i {
 
@@ -39,17 +42,17 @@ public:
 		}
 
 		// 2) Decode instruction
-		uint32_t opcode = instruction          & 0b00000000000000000000000001111111;
-		uint32_t rd = instruction              & 0b00000000000000000000111110000000;
-		uint32_t funct3 = instruction          & 0b00000000000000000111000000000000;
-		uint32_t rs1 = instruction             & 0b00000000000011111000000000000000;
-		uint32_t rs2 = instruction             & 0b00000001111100000000000000000000;
+		uint32_t opcode = instruction & 0b00000000000000000000000001111111;
+		uint32_t rd = instruction & 0b00000000000000000000111110000000;
+		uint32_t funct3 = instruction & 0b00000000000000000111000000000000;
+		uint32_t rs1 = instruction & 0b00000000000011111000000000000000;
+		uint32_t rs2 = instruction & 0b00000001111100000000000000000000;
 		uint32_t imm_lower_btype = instruction & 0b00000000000000000000111110000000; // Note: s and b types use the same bits
 		uint32_t imm_upper_btype = instruction & 0b11111110000000000000000000000000;
-		uint32_t imm_utype = instruction       & 0b11111111111111111111000000000000;
-		uint32_t imm_jtype = instruction       & 0b11111111111111111111000000000000;
-		uint32_t imm_itype = instruction       & 0b11111111111100000000000000000000;
-		uint32_t funct7 = instruction          & 0b11111110000000000000000000000000;
+		uint32_t imm_utype = instruction & 0b11111111111111111111000000000000;
+		uint32_t imm_jtype = instruction & 0b11111111111111111111000000000000;
+		uint32_t imm_itype = instruction & 0b11111111111100000000000000000000;
+		uint32_t funct7 = instruction & 0b11111110000000000000000000000000;
 
 		rd >>= 7;
 		rs1 >>= 15;
@@ -59,9 +62,11 @@ public:
 		// 3) Execute instruction
 		if (opcode == opcode::lui) {
 			registers.REG[rd] = imm_utype;
+			this->pc = pc + 4;
 		}
 		else if (opcode == opcode::aupic) {
 			registers.REG[rd] = imm_utype + pc;
+			this->pc = pc + 4;
 		}
 		else if (opcode == opcode::jal) {
 			// rd <- pc + 4
@@ -152,13 +157,18 @@ public:
 				this->pc = pc + 4;
 				break; break;
 			case 0b001 /* slli */:
-				// (TODO): Implement this
-				// rd <- (rs1 ^ imm_i) ? 1: 0, pc <- pc+4
-				//registers.REG[rd] = registers.REG[rs1] ^ imm_i;
+				registers.REG[rd] = registers.REG[rs1] << imm_i;
 				this->pc = pc + 4;
 				break; break;
 			case 0b101 /* srli and srai */:
-				// (TODO): Implement this
+				if (funct7) {
+					// srai
+					registers.REG[rd] = int32_t(registers.REG[rs1]) >> imm_i;
+				}
+				else {
+					// srli
+					registers.REG[rd] = uint32_t(registers.REG[rs1]) >> imm_i;
+				}
 				this->pc = pc + 4;
 				break;
 			}
@@ -205,13 +215,18 @@ public:
 				registers.REG[rd] = uint32_t(registers.REG[rs1]) < uint32_t(registers.REG[rs2]) ? 1 : 0;
 				this->pc = pc + 4;
 				break;
+			case 0b100 /* xori */:
+				// rd <- (rs1 ^ imm_i) ? 1: 0, pc <- pc+4
+				registers.REG[rd] = registers.REG[rs1] ^ registers.REG[rs2];
+				this->pc = pc + 4;
+				break;
 			case 0b101 /* srl or sra */:
 				if (!funct7)
 					registers.REG[rd] = uint32_t(registers.REG[rs1]) >> registers.REG[rs2];
 				else
 					registers.REG[rd] = int32_t(registers.REG[rs1]) >> registers.REG[rs2];
-				break;
 				this->pc = pc + 4;
+				break;
 			case 0b110 /* or */:
 				registers.REG[rd] = registers.REG[rs1] | registers.REG[rs2];
 				this->pc = pc + 4;
@@ -248,38 +263,38 @@ public:
 		system("cls");
 
 		printf("pc   = %0*d / 0x%08X     |     Cycle Count = %d\n", maxDigits, pc, pc, cycleCount);
-		printf("zero = "); if (old_registers.REG[0  ] != registers.REG[0  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[0  ], registers.REG[0  ]); printf("\033[0m");
-		printf("ra   = "); if (old_registers.REG[1  ] != registers.REG[1  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[1  ], registers.REG[1  ]); printf("\033[0m");
-		printf("sp   = "); if (old_registers.REG[2  ] != registers.REG[2  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[2  ], registers.REG[2  ]); printf("\033[0m");
-		printf("gp   = "); if (old_registers.REG[3  ] != registers.REG[3  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[3  ], registers.REG[3  ]); printf("\033[0m");
-		printf("tp   = "); if (old_registers.REG[4  ] != registers.REG[4  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[4  ], registers.REG[4  ]); printf("\033[0m");
-		printf("t0   = "); if (old_registers.REG[5  ] != registers.REG[5  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[5  ], registers.REG[5  ]); printf("\033[0m");
-		printf("t1   = "); if (old_registers.REG[6  ] != registers.REG[6  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[6  ], registers.REG[6  ]); printf("\033[0m");
-		printf("t2   = "); if (old_registers.REG[7  ] != registers.REG[7  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[7  ], registers.REG[7  ]); printf("\033[0m");
-		printf("s0   = "); if (old_registers.REG[8  ] != registers.REG[8  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[8  ], registers.REG[8  ]); printf("\033[0m");
-		printf("s1   = "); if (old_registers.REG[9  ] != registers.REG[9  ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[9  ], registers.REG[9  ]); printf("\033[0m");
-		printf("a0   = "); if (old_registers.REG[10 ] != registers.REG[10 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[10 ], registers.REG[10 ]); printf("\033[0m");
-		printf("a1   = "); if (old_registers.REG[11 ] != registers.REG[11 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[11 ], registers.REG[11 ]); printf("\033[0m");
-		printf("a2   = "); if (old_registers.REG[12 ] != registers.REG[12 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[12 ], registers.REG[12 ]); printf("\033[0m");
-		printf("a3   = "); if (old_registers.REG[13 ] != registers.REG[13 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[13 ], registers.REG[13 ]); printf("\033[0m");
-		printf("a4   = "); if (old_registers.REG[14 ] != registers.REG[14 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[14 ], registers.REG[14 ]); printf("\033[0m");
-		printf("a5   = "); if (old_registers.REG[15 ] != registers.REG[15 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[15 ], registers.REG[15 ]); printf("\033[0m");
-		printf("a6   = "); if (old_registers.REG[16 ] != registers.REG[16 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[16 ], registers.REG[16 ]); printf("\033[0m");
-		printf("a7   = "); if (old_registers.REG[17 ] != registers.REG[17 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[17 ], registers.REG[17 ]); printf("\033[0m");
-		printf("s2   = "); if (old_registers.REG[18 ] != registers.REG[18 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[18 ], registers.REG[18 ]); printf("\033[0m");
-		printf("s3   = "); if (old_registers.REG[19 ] != registers.REG[19 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[19 ], registers.REG[19 ]); printf("\033[0m");
-		printf("s4   = "); if (old_registers.REG[20 ] != registers.REG[20 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[20 ], registers.REG[20 ]); printf("\033[0m");
-		printf("s5   = "); if (old_registers.REG[21 ] != registers.REG[21 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[21 ], registers.REG[21 ]); printf("\033[0m");
-		printf("s6   = "); if (old_registers.REG[22 ] != registers.REG[22 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[22 ], registers.REG[22 ]); printf("\033[0m");
-		printf("s7   = "); if (old_registers.REG[23 ] != registers.REG[23 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[23 ], registers.REG[23 ]); printf("\033[0m");
-		printf("s8   = "); if (old_registers.REG[24 ] != registers.REG[24 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[24 ], registers.REG[24 ]); printf("\033[0m");
-		printf("s9   = "); if (old_registers.REG[25 ] != registers.REG[25 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[25 ], registers.REG[25 ]); printf("\033[0m");
-		printf("s10  = "); if (old_registers.REG[26 ] != registers.REG[26 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[26 ], registers.REG[26 ]); printf("\033[0m");
-		printf("s11  = "); if (old_registers.REG[27 ] != registers.REG[27 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[27 ], registers.REG[27 ]); printf("\033[0m");
-		printf("t3   = "); if (old_registers.REG[28 ] != registers.REG[28 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[28 ], registers.REG[28 ]); printf("\033[0m");
-		printf("t4   = "); if (old_registers.REG[29 ] != registers.REG[29 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[29 ], registers.REG[29 ]); printf("\033[0m");
-		printf("t5   = "); if (old_registers.REG[30 ] != registers.REG[30 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[30 ], registers.REG[30 ]); printf("\033[0m");
-		printf("t6   = "); if (old_registers.REG[31 ] != registers.REG[31 ]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[31 ], registers.REG[31 ]); printf("\033[0m");
+		printf("zero = "); if (old_registers.REG[0] != registers.REG[0]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[0], registers.REG[0]); printf("\033[0m");
+		printf("ra   = "); if (old_registers.REG[1] != registers.REG[1]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[1], registers.REG[1]); printf("\033[0m");
+		printf("sp   = "); if (old_registers.REG[2] != registers.REG[2]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[2], registers.REG[2]); printf("\033[0m");
+		printf("gp   = "); if (old_registers.REG[3] != registers.REG[3]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[3], registers.REG[3]); printf("\033[0m");
+		printf("tp   = "); if (old_registers.REG[4] != registers.REG[4]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[4], registers.REG[4]); printf("\033[0m");
+		printf("t0   = "); if (old_registers.REG[5] != registers.REG[5]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[5], registers.REG[5]); printf("\033[0m");
+		printf("t1   = "); if (old_registers.REG[6] != registers.REG[6]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[6], registers.REG[6]); printf("\033[0m");
+		printf("t2   = "); if (old_registers.REG[7] != registers.REG[7]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[7], registers.REG[7]); printf("\033[0m");
+		printf("s0   = "); if (old_registers.REG[8] != registers.REG[8]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[8], registers.REG[8]); printf("\033[0m");
+		printf("s1   = "); if (old_registers.REG[9] != registers.REG[9]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[9], registers.REG[9]); printf("\033[0m");
+		printf("a0   = "); if (old_registers.REG[10] != registers.REG[10]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[10], registers.REG[10]); printf("\033[0m");
+		printf("a1   = "); if (old_registers.REG[11] != registers.REG[11]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[11], registers.REG[11]); printf("\033[0m");
+		printf("a2   = "); if (old_registers.REG[12] != registers.REG[12]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[12], registers.REG[12]); printf("\033[0m");
+		printf("a3   = "); if (old_registers.REG[13] != registers.REG[13]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[13], registers.REG[13]); printf("\033[0m");
+		printf("a4   = "); if (old_registers.REG[14] != registers.REG[14]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[14], registers.REG[14]); printf("\033[0m");
+		printf("a5   = "); if (old_registers.REG[15] != registers.REG[15]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[15], registers.REG[15]); printf("\033[0m");
+		printf("a6   = "); if (old_registers.REG[16] != registers.REG[16]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[16], registers.REG[16]); printf("\033[0m");
+		printf("a7   = "); if (old_registers.REG[17] != registers.REG[17]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[17], registers.REG[17]); printf("\033[0m");
+		printf("s2   = "); if (old_registers.REG[18] != registers.REG[18]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[18], registers.REG[18]); printf("\033[0m");
+		printf("s3   = "); if (old_registers.REG[19] != registers.REG[19]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[19], registers.REG[19]); printf("\033[0m");
+		printf("s4   = "); if (old_registers.REG[20] != registers.REG[20]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[20], registers.REG[20]); printf("\033[0m");
+		printf("s5   = "); if (old_registers.REG[21] != registers.REG[21]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[21], registers.REG[21]); printf("\033[0m");
+		printf("s6   = "); if (old_registers.REG[22] != registers.REG[22]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[22], registers.REG[22]); printf("\033[0m");
+		printf("s7   = "); if (old_registers.REG[23] != registers.REG[23]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[23], registers.REG[23]); printf("\033[0m");
+		printf("s8   = "); if (old_registers.REG[24] != registers.REG[24]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[24], registers.REG[24]); printf("\033[0m");
+		printf("s9   = "); if (old_registers.REG[25] != registers.REG[25]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[25], registers.REG[25]); printf("\033[0m");
+		printf("s10  = "); if (old_registers.REG[26] != registers.REG[26]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[26], registers.REG[26]); printf("\033[0m");
+		printf("s11  = "); if (old_registers.REG[27] != registers.REG[27]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[27], registers.REG[27]); printf("\033[0m");
+		printf("t3   = "); if (old_registers.REG[28] != registers.REG[28]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[28], registers.REG[28]); printf("\033[0m");
+		printf("t4   = "); if (old_registers.REG[29] != registers.REG[29]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[29], registers.REG[29]); printf("\033[0m");
+		printf("t5   = "); if (old_registers.REG[30] != registers.REG[30]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[30], registers.REG[30]); printf("\033[0m");
+		printf("t6   = "); if (old_registers.REG[31] != registers.REG[31]) printf("\033[31m"); printf("%0*d / 0x%08X\n", maxDigits, registers.REG[31], registers.REG[31]); printf("\033[0m");
 
 		memcpy((void*)&old_registers, (void*)&registers, sizeof(register_file));
 	}
@@ -337,45 +352,43 @@ public:
 			} alias;
 		};
 	};
+public:
+	register_file registers;
+	int cycleCount = 0;
 
 protected:
 	std::vector<uint32_t> memory;
 	uint32_t pc; // program counter
-	int cycleCount = 0;
-	register_file registers;
 	register_file old_registers;
 
 };
 
 int main() {
-	cpu_risc32i rv;
+	cpu_risc32i rv(262144);
 
-	rv.load_program(0, {
-	0x7ff00313, //addi x6 x0 2
-	0x00800393, //addi x7 x0 8
-	0x00730533, //add x10 x6 x7
-	});
 
-	std::vector<uint32_t> program_b = {
-           0x00100293,//        addi x5 x0 1
-           0x00000313,//        addi x6 x0 0
-           0x00800413,//        addi x8 x0 8
-           0x00100493,//        addi x9 x0 1
-           0x00628e33,//        add x28 x5 x6
-           0x00500333,//        add x6 x0 x5
-           0x01c002b3,//        add x5 x0 x28
-           0xfff40413,//        addi x8 x8 -1
-           0xfe9458e3,//        bge x8 x9 -16 <loop>
-	};
+	std::vector<uint32_t> program_c;
+	std::fstream bin("fake_memory_init.bin");
+	std::string text;
+	while (std::getline(bin, text)) {
+		program_c.push_back(std::stoul(text, nullptr, 16));
+	}
+	bin.close();
 
-	rv.load_program(0, program_b);
-
+	rv.load_program(0, program_c);
 	rv.display_registers();
 
+	std::ofstream cpu_state("emulator.log");
 	while (true) {
 		system("PAUSE > NUL");
 		rv.cycle();
+		cpu_state << std::format("{:04d}:   ", rv.cycleCount);
+		for (int i = 0; i < 32; i++)
+			cpu_state << std::format("{}{:08X}  ", (rv.registers.REG[i] >= 0) ? '+' : '-', abs(rv.registers.REG[i]));
+		cpu_state << '\n';
+		cpu_state.flush();
 	}
+	cpu_state.close();
 	/*
 	0x7ff00313, //addi x6 x0 2
 		0x00800393, //addi x7 x0 8
