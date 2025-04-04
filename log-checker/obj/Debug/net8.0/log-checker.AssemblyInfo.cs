@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("log-checker")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ed3c5c1a5acbeffd5fbc345740b140d11e31aff9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d725d337d2f592d24150bee241070d9b21652300")]
 [assembly: System.Reflection.AssemblyProductAttribute("log-checker")]
 [assembly: System.Reflection.AssemblyTitleAttribute("log-checker")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -261,7 +261,7 @@ public:
 	}
 
 	void display_registers() const {
-		return;
+		//return;
 		int maxDigits = 0;
 		for (int i = 0; i < 32; i++)
 			maxDigits = std::max(countDigits((int32_t)registers.REG[i]), maxDigits);
@@ -377,7 +377,6 @@ int main() {
 
 	cpu_risc32i rv(262144);
 
-
 	std::vector<uint32_t> program_c;
 	std::fstream bin("C:\\Users\\youssef\\Downloads\\mem.init.txt");
 	std::string text;
@@ -391,6 +390,7 @@ int main() {
 
 	std::ofstream cpu_state("emulator.log");
 	uint32_t instruction = 0;
+#if 0
 	printf("\033[?25l");  // Hide cursor
 
 	printf("\033[48;5;232;38;5;220m                                                                                                                                                        \n");
@@ -442,9 +442,9 @@ int main() {
 	char spinner[] = { '\\', '|', '/', '-' };
 	char spinner2[] = { 'o', '.', '0', 'O' };
 	int spinnerIdx = 0;
+#endif
 	for (int n = 0; n < program_c.size(); n++) {
-		//system("PAUSE > NUL");
-
+#if 0
 		if (n % 100 == 0) {
 			int percentDone = (100 * n) / program_c.size();
 
@@ -471,14 +471,17 @@ int main() {
 			printf("> %d%% done %c\r", percentDone, spinner[(spinnerIdx++) / 10]);
 			spinnerIdx = spinnerIdx == 4 * 10 ? 0 : spinnerIdx;
 		}
+#endif
 
+		//cpu_state << std::format("{:04d} ({:08X}):   ", rv.cycleCount, instruction);
+		//for (int i = 0; i < 32; i++) {
+		//	cpu_state << std::format("{:x} ", (uint32_t)rv.registers.REG[i]);
+		//}
+		////cpu_state << '\n';
+		//cpu_state.flush();
+		rv.display_registers();
+		system("PAUSE > NUL");
 		instruction = rv.cycle();
-		cpu_state << std::format("{:04d} ({:08X}):   ", rv.cycleCount, instruction);
-		for (int i = 0; i < 32; i++) {
-			cpu_state << std::format("{:x} ", (uint32_t)rv.registers.REG[i]);
-		}
-		cpu_state << '\n';
-		cpu_state.flush();
 	}
 	cpu_state.close();
 	/*
