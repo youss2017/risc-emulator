@@ -1,0 +1,15 @@
+C:\Users\youssef\source\repos\risc-emulator\log-checker\bin\Release\net8.0\log-checker.exe
+C:\Users\youssef\source\repos\risc-emulator\log-checker\bin\Release\net8.0\log-checker.deps.json
+C:\Users\youssef\source\repos\risc-emulator\log-checker\bin\Release\net8.0\log-checker.runtimeconfig.json
+C:\Users\youssef\source\repos\risc-emulator\log-checker\bin\Release\net8.0\log-checker.dll
+C:\Users\youssef\source\repos\risc-emulator\log-checker\bin\Release\net8.0\log-checker.pdb
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.AssemblyInfoInputs.cache
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.AssemblyInfo.cs
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.csproj.CoreCompileInputs.cache
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.sourcelink.json
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.dll
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\refint\log-checker.dll
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.pdb
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\log-checker.genruntimeconfig.cache
+C:\Users\youssef\source\repos\risc-emulator\log-checker\obj\Release\net8.0\ref\log-checker.dll

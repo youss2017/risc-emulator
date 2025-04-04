@@ -3,6 +3,7 @@
 #include <string>
 #include <fstream>
 #include <format>
+#include <thread>
 
 class cpu_risc32i {
 
@@ -19,17 +20,19 @@ public:
 		this->pc = reset_pc;
 		for (int i = 0; i < 32; i++)
 			registers.REG[0] = 0;
-		registers.alias.sp = memory.size() - 4;
+		registers.alias.sp = 1024;// memory.size() - 4;
 		// clear memory
 		for (auto& i : memory) i = 0;
+		isolated_memory = memory;
 	}
 
 	void load_program(uint32_t offset, const std::vector<uint32_t>& bin) {
-		for (uint32_t i = 0; i < bin.size(); i++)
+		for (uint32_t i = 0; i < std::min(bin.size(), memory.size()); i++)
 			memory[i + offset] = bin.at(i); // throws exception if out of bounds
+		isolated_memory = memory;
 	}
 
-	void cycle() {
+	uint32_t cycle() {
 		cycleCount++;
 
 		// 1) Read instruction at PC
@@ -38,7 +41,7 @@ public:
 
 		if (!instruction) {
 			display_registers();
-			return;
+			return instruction;
 		}
 
 		// 2) Decode instruction
@@ -58,6 +61,8 @@ public:
 		rs1 >>= 15;
 		rs2 >>= 20;
 		funct3 >>= 12;
+
+		registers.alias.zero = 0;
 
 		// 3) Execute instruction
 		if (opcode == opcode::lui) {
@@ -81,10 +86,9 @@ public:
 			// rd <- pc + 4
 			// pc <- (rs1 + imm_i) & ~1
 			int32_t imm_i = (imm_itype & 0x80000000) ? 0xfffff000 : 0; // this is the sign extension
-			imm_i &= imm_itype >> 20;
+			imm_i |= imm_itype >> 20;
+			this->pc = (registers.REG[rs1] + imm_i) & ~1;
 			registers.REG[rd] = pc + 4;
-			this->pc = (pc + imm_i) & ~1;
-
 		}
 		else if (opcode == opcode::btype) {
 			// pc <- pc + ( rs1 == rs2) ? imm_b : 4 )
@@ -108,9 +112,9 @@ public:
 		}
 		else if (opcode == opcode::itype_mem) {
 			int32_t imm_i = (imm_itype & 0x80000000) ? 0xfffff000 : 0; // this is the sign extension
-			imm_i &= imm_itype >> 20;
+			imm_i |= imm_itype >> 20;
 			uint32_t read_address = registers.REG[rs1] + imm_i;
-			uint32_t data = memory[read_address % memory.size()];
+			uint32_t data = isolated_memory[read_address % isolated_memory.size()];
 			switch (funct3) {
 			case 0b000 /* lb  */: registers.REG[rd] = int32_t(int8_t(data)); break;
 			case 0b001 /* lh  */: registers.REG[rd] = int32_t(int16_t(data)); break;
@@ -132,7 +136,7 @@ public:
 				this->pc = pc + 4;
 				break;
 			case 0b010 /* slti */:
-				// rd <- (rs1 < imm_i) ? 1: 0, pc <- pc+4
+				// rd <- (rs1 < imm_i) ? 1 : 0, pc <- pc+4
 				registers.REG[rd] = int32_t(registers.REG[rs1]) < int32_t(imm_i);
 				this->pc = pc + 4;
 				break;
@@ -178,21 +182,21 @@ public:
 			imm_s |= imm_upper_btype >> 20;
 			imm_s |= imm_lower_btype >> 7;
 			// so easy :) compared to b-type
-			uint32_t memory_address = (imm_s + registers.REG[rs1]) % memory.size();
-			uint32_t old_data = memory[memory_address];
+			uint32_t memory_address = (imm_s + registers.REG[rs1]) % isolated_memory.size();
+			uint32_t old_data = isolated_memory[memory_address];
 			switch (funct3) {
 			case 0b000 /* sb */:
 				old_data &= 0xffffff00; // clear out bottom byte
-				memory[memory_address] = old_data | (registers.REG[rs2] & 0x000000ff /* select bottom 8-bits*/);
+				isolated_memory[memory_address] = old_data | (registers.REG[rs2] & 0x000000ff /* select bottom 8-bits*/);
 				this->pc = pc + 4;
 				break;
 			case 0b001 /* sh */:
 				old_data &= 0xffff0000; // clear out bottom 2-byte
-				memory[memory_address] = old_data | (registers.REG[rs2] & 0x0000ffff /* select bottom 16-bits*/);
+				isolated_memory[memory_address] = old_data | (registers.REG[rs2] & 0x0000ffff /* select bottom 16-bits*/);
 				this->pc = pc + 4;
 				break;
 			case 0b010 /* sw */:
-				memory[memory_address] = registers.REG[rs2];
+				isolated_memory[memory_address] = registers.REG[rs2];
 				this->pc = pc + 4;
 				break;
 			}
@@ -243,8 +247,11 @@ public:
 			throw std::runtime_error("Invalid instruction type encountered.");
 		}
 
+		registers.alias.zero = 0;
+
 		// 5) Present register state
 		display_registers();
+		return instruction;
 	}
 
 	static int countDigits(int32_t number) {
@@ -254,7 +261,7 @@ public:
 	}
 
 	void display_registers() const {
-
+		return;
 		int maxDigits = 0;
 		for (int i = 0; i < 32; i++)
 			maxDigits = std::max(countDigits((int32_t)registers.REG[i]), maxDigits);
@@ -358,17 +365,21 @@ public:
 
 protected:
 	std::vector<uint32_t> memory;
+	std::vector<uint32_t> isolated_memory;
 	uint32_t pc; // program counter
 	register_file old_registers;
 
 };
 
 int main() {
+	
+	system("cls");
+
 	cpu_risc32i rv(262144);
 
 
 	std::vector<uint32_t> program_c;
-	std::fstream bin("fake_memory_init.bin");
+	std::fstream bin("C:\\Users\\youssef\\Downloads\\mem.init.txt");
 	std::string text;
 	while (std::getline(bin, text)) {
 		program_c.push_back(std::stoul(text, nullptr, 16));
@@ -379,12 +390,93 @@ int main() {
 	rv.display_registers();
 
 	std::ofstream cpu_state("emulator.log");
-	while (true) {
-		system("PAUSE > NUL");
-		rv.cycle();
-		cpu_state << std::format("{:04d}:   ", rv.cycleCount);
-		for (int i = 0; i < 32; i++)
-			cpu_state << std::format("{}{:08X}  ", (rv.registers.REG[i] >= 0) ? '+' : '-', abs(rv.registers.REG[i]));
+	uint32_t instruction = 0;
+	printf("\033[?25l");  // Hide cursor
+
+	printf("\033[48;5;232;38;5;220m                                                                                                                                                        \n");
+	printf(" _______    ______   _______   ______  _______           __    __         ______   __                __     __  __            __                        \n");
+	printf("|       \\  /      \\ |       \\ |      \\|       \\         |  \\  |  \\       /      \\ |  \\              |  \\   |  \\|  \\          |  \\                       \n");
+	printf("| $$$$$$$\\|  $$$$$$\\| $$$$$$$\\ \\$$$$$$| $$$$$$$\\        | $$  | $$      |  $$$$$$\\ \\$$ ______ ____  | $$   | $$ \\$$  _______  \\$$  ______   _______     \n");
+	printf("| $$__| $$| $$__| $$| $$__/ $$  | $$  | $$  | $$ ______  \\$$\\/  $$      | $$___\\$$|  \\|      \\    \\ | $$   | $$|  \\ /       \\|  \\ /      \\ |       \\    \n");
+	printf("| $$    $$| $$    $$| $$    $$  | $$  | $$  | $$|      \\  >$$  $$        \\$$    \\ | $$| $$$$$$\\$$$$\\ \\$$\\ /  $$| $$|  $$$$$$$| $$|  $$$$$$\\| $$$$$$$\\   \n");
+	printf("| $$$$$$$\\| $$$$$$$$| $$$$$$$   | $$  | $$  | $$ \\$$$$$$ /  $$$$\\        _\\$$$$$$\\| $$| $$ | $$ | $$  \\$$\\  $$ | $$ \\$$    \\ | $$| $$  | $$| $$  | $$   \n");
+	printf("| $$  | $$| $$  | $$| $$       _| $$_ | $$__/ $$        |  $$ \\$$\\      |  \\__| $$| $$| $$ | $$ | $$   \\$$ $$  | $$ _\\$$$$$$\\| $$| $$__/ $$| $$  | $$   \n");
+	printf("| $$  | $$| $$  | $$| $$      |   $$ \\| $$    $$        | $$  | $$       \\$$    $$| $$| $$ | $$ | $$    \\$$$   | $$|       $$| $$ \\$$    $$| $$  | $$   \n");
+	printf(" \\$$   \\$$ \\$$   \\$$ \\$$       \\$$$$$$ \\$$$$$$$          \\$$   \\$$        \\$$$$$$  \\$$ \\$$  \\$$  \\$$     \\$     \\$$ \\$$$$$$$  \\$$  \\$$$$$$  \\$$   \\$$   \n");
+	printf("                                                                          .,,.                                 	\n");
+	printf("                                                                  ,,,,,,,                                       \n");
+	printf("                                                            , ,,,,,,,       ,                                   \n");
+	printf("                                                         ,, ,,,,,,,       ,,,,                                  \n");
+	printf("                                                      ,,, ,,,,,,,,                                              \n");
+	printf("                                                    ,,,, .,,,,,,,                        .                      \n");
+	printf("                                                   ,,,,, ,,,,,,,,             ,,,,,,,,, ,,                      \n");
+	printf("                                                  ,,,,,, ,,,,,,,,          ,,,,,,,,,,,,,,,,                     \n");
+	printf("                                                , ,,,,,,  ,,,,,,,,       ,,,,,,,,,,,,,,,,,,                     \n");
+	printf("                                                , ,,,,,,, ,,,,,,,,,,   ,,,,,,,,,,,,  ,,,,,,,                    \n");
+	printf("                                                , ,,,,,,,,  ,,,,,,,,,,  ,,,,,,,,,,     ,,,,,  ,,                \n");
+	printf("                                               .,, ,,,,,,,,, ,,,,,,,,,,,,  ,,,,,,,,     ,  ,,,,,,               \n");
+	printf("                                                ,,, ,,,,,,,,,,  ,,,,,,,,,,,, ,,,,,,,,. ,,,,,,,,,,               \n");
+	printf("                                                ,,,,, ,,,,,,,,,,,  ,,,,,,,,,,,, ,,,,,,,,,,,,,,,,,               \n");
+	printf("                                                 ,,,,,,  ,,,,,,,,,,,,,  ,,,,,,,,, .,,,,,,,,,, .,,               \n");
+	printf("                                                  ,,,,,,,,,  ,,,,,,,,,,,,,,  ,,,,,, ,,,,,,,,   ,,               \n");
+	printf("                                                   ,,,,,,,,,,,,,.   ,,,,,,,,,,,  ,,, ,,,,,,  ,,,,               \n");
+	printf("                                                      ,,,,,,,,,,,,,,,,,,,   ,,,,, ,, .,,,   ,,,,                \n");
+	printf("                                                      ,,.  .,,,,,,,,,,,,,,,,,, ,,, , ,,                         \n");
+	printf("                                                        ,,,,,,,,           ,,,, , . ,                           \n");
+	printf("                                                           ,,,,,,,,,,,,,,,,,.                                   \n");
+	printf("                                                                ,,,,,,,,,,,,                                    \n");
+	printf("                                              \033[48;5;232;38;5;220m \n");
+	printf("  ______    ______    ______   _______          ______   _______   _______   ______  __    __   ______                                                  \n");
+	printf(" /      \\  /      \\  /      \\ |       \\        /      \\ |       \\ |       \\ |      \\|  \\  |  \\ /      \\                                                 \n");
+	printf("|  $$$$$$\\|  $$$$$$\\|  $$$$$$\\| $$$$$$$       |  $$$$$$\\| $$$$$$$\\| $$$$$$$\\ \\$$$$$$| $$\\ | $$|  $$$$$$\\                                                \n");
+	printf(" \\$$__| $$| $$$\\| $$ \\$$__| $$| $$____        | $$___\\$$| $$__/ $$| $$__| $$  | $$  | $$$\\| $$| $$ __\\$$                                                \n");
+	printf(" /      $$| $$$$\\ $$ /      $$| $$    \\        \\$$    \\ | $$    $$| $$    $$  | $$  | $$$$\\ $$| $$|    \\                                                \n");
+	printf("|  $$$$$$ | $$\\$$\\$$|  $$$$$$  \\$$$$$$$\\       _\\$$$$$$\\| $$$$$$$ | $$$$$$$\\  | $$  | $$\\$$ $$| $$ \\$$$$                                                \n");
+	printf("| $$_____ | $$_\\$$$$| $$_____ |  \\__| $$      |  \\__| $$| $$      | $$  | $$ _| $$_ | $$ \\$$$$| $$__| $$                                                \n");
+	printf("| $$     \\ \\$$  \\$$$| $$     \\ \\$$    $$       \\$$    $$| $$      | $$  | $$|   $$ \\| $$  \\$$$ \\$$    $$                                                \n");
+	printf(" \\$$$$$$$$  \\$$$$$$  \\$$$$$$$$  \\$$$$$$         \\$$$$$$  \\$$       \\$$   \\$$ \\$$$$$$ \\$$   \\$$  \\$$$$$$                                                 \n");
+	printf("                                                                                                                                                        \n");
+
+	printf("\033[0mEmulator Running...\n");
+
+	char spinner[] = { '\\', '|', '/', '-' };
+	char spinner2[] = { 'o', '.', '0', 'O' };
+	int spinnerIdx = 0;
+	for (int n = 0; n < program_c.size(); n++) {
+		//system("PAUSE > NUL");
+
+		if (n % 100 == 0) {
+			int percentDone = (100 * n) / program_c.size();
+
+			printf("%c ", spinner[(spinnerIdx) / 10]);
+
+			printf("<\033[44;32m");
+			for (int i = 0; i <= 400; i += 10) {
+				// Calculate color intensity based on i, increase brightness every 40 increments
+				int brightness = (i / 40);  // Ranges from 0 to 10
+
+				// Background color starts at dark yellow (130) and gets brighter
+				int bgColor = 130 + brightness;  // Dark yellow -> bright yellow
+
+				// Foreground color starts at yellow (226) and gradually becomes green (46)
+				int fgColor = 226 - brightness;  // Yellow -> Green
+
+				if (percentDone * 4 > i) {
+					printf("\033[48;5;%d;38;5;%dm", bgColor, fgColor);
+					printf("-");
+				}
+				else
+					printf("\033[0m");
+			}
+			printf("> %d%% done %c\r", percentDone, spinner[(spinnerIdx++) / 10]);
+			spinnerIdx = spinnerIdx == 4 * 10 ? 0 : spinnerIdx;
+		}
+
+		instruction = rv.cycle();
+		cpu_state << std::format("{:04d} ({:08X}):   ", rv.cycleCount, instruction);
+		for (int i = 0; i < 32; i++) {
+			cpu_state << std::format("{:x} ", (uint32_t)rv.registers.REG[i]);
+		}
 		cpu_state << '\n';
 		cpu_state.flush();
 	}
