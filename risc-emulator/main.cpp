@@ -390,7 +390,7 @@ int main() {
 
 	std::ofstream cpu_state("emulator.log");
 	uint32_t instruction = 0;
-#if 0
+#if 1
 	printf("\033[?25l");  // Hide cursor
 
 	printf("\033[48;5;232;38;5;220m                                                                                                                                                        \n");
@@ -444,7 +444,8 @@ int main() {
 	int spinnerIdx = 0;
 #endif
 	for (int n = 0; n < program_c.size(); n++) {
-#if 0
+#if 1
+		instruction = rv.cycle();
 		if (n % 100 == 0) {
 			int percentDone = (100 * n) / program_c.size();
 
@@ -473,15 +474,14 @@ int main() {
 		}
 #endif
 
-		//cpu_state << std::format("{:04d} ({:08X}):   ", rv.cycleCount, instruction);
-		//for (int i = 0; i < 32; i++) {
-		//	cpu_state << std::format("{:x} ", (uint32_t)rv.registers.REG[i]);
-		//}
-		////cpu_state << '\n';
-		//cpu_state.flush();
+		cpu_state << std::format("{:04d} ({:08X}):   ", rv.cycleCount, instruction);
+		for (int i = 0; i < 32; i++) {
+			cpu_state << std::format("{:x} ", (uint32_t)rv.registers.REG[i]);
+		}
+		cpu_state << '\n';
+		cpu_state.flush();
 		rv.display_registers();
-		system("PAUSE > NUL");
-		instruction = rv.cycle();
+		//system("PAUSE > NUL");
 	}
 	cpu_state.close();
 	/*
